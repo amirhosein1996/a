@@ -1,0 +1,56 @@
+public class BinaryCoder
+{
+  private UInt32 m_high = ~0u, m_low = 0;
+  private Stream m_output;
+ 
+public BinaryCoder(Stream outputStream)
+{
+  m_output = outputStream;
+}
+
+public void Encode(int bit, UInt32 probability)
+{
+  UInt32 x = m_low + (UInt32)(((UInt64)(m_high - m_low) *
+                               probability) >> CoderConstants.PROB_BITS);
+
+  if (bit != 0)
+    m_high = x;
+  else
+    m_low = x + 1;
+
+
+  // this is renormalization - shift out topmost bits that match
+  while ((m_low ^ m_high) < 0x01000000)
+  {
+    m_output.WriteByte((byte)(m_low >> 24));
+    m_low <<= 8;
+    m_high = (m_high << 8) | 0x000000ff;
+  }
+}
+
+public void Flush()
+{
+  UInt32 roundUp = 0x00ffffffu;
+  while (roundUp != 0) 
+  {
+    if ((m_low | roundUp) != 0xffffffffu)
+    {
+      UInt32 rounded = (m_low + roundUp) & ~roundUp;
+      if (rounded <= m_high)
+      {
+        m_low = rounded;
+        break;
+      }
+    }
+
+    roundUp >>= 8;
+  }
+
+  while (m_low != 0) 
+  {
+    m_output.WriteByte((byte)(m_low >> 24));
+    m_low <<= 8;
+  }
+  m_output.Flush();
+}
+}
